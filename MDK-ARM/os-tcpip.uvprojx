@@ -80,7 +80,7 @@
           <AfterMake>
             <RunUserProg1>1</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name>fromelf --bin --output .\ftp_server.bin .\os-tcpip\os-tcpip.axf</UserProg1Name>
+            <UserProg1Name>fromelf --bin --output .\ftp_telnet.bin .\os-tcpip\os-tcpip.axf</UserProg1Name>
             <UserProg2Name></UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
@@ -520,6 +520,11 @@
               <FileName>stm32f4xx_hal_msp.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Src/stm32f4xx_hal_msp.c</FilePath>
+            </File>
+            <File>
+              <FileName>telnet_server.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\telnet_server.c</FilePath>
             </File>
           </Files>
         </Group>
