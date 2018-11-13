@@ -84,33 +84,33 @@ int fputc(int ch, FILE *f)
 	* @author   古么宁
 	* @brief    i_itoa 
 	*           整型转十进制字符串
-	* @param    pcBuf   转字符串所在内存
-	* @param    iValue  值
+	* @param    strbuf   转字符串所在内存
+	* @param    value  值
 	* @return   转换所得字符串长度
 */	
-int i_itoa(char * pcBuf,int iValue)		
+int i_itoa(char * strbuf,int value)		
 {
-	int iLen = 0;
-	int iVal = (iValue<0)?(0-iValue) : iValue; 
+	int len = 0;
+	int value_fix = (value<0)?(0-value) : value; 
 	
 	do
 	{
-		pcBuf[iLen++] = (char)(iVal % 10 + '0'); 
-		iVal = iVal/10;
+		strbuf[len++] = (char)(value_fix % 10 + '0'); 
+		value_fix = value_fix/10;
 	}
-	while(iVal);
+	while(value_fix);
 	
-	if (iValue < 0) 
-		pcBuf[iLen++] = '-'; 
+	if (value < 0) 
+		strbuf[len++] = '-'; 
 	
-	for (uint8_t index = 1 ; index <= iLen/2; ++index)
+	for (uint8_t index = 1 ; index <= len/2; ++index)
 	{
-		char reverse = pcBuf[iLen  - index];  
-		pcBuf[iLen - index] = pcBuf[index -1];   
-		pcBuf[index - 1] = reverse; 
+		char reverse = strbuf[len  - index];  
+		strbuf[len - index] = strbuf[index -1];   
+		strbuf[index - 1] = reverse; 
 	}
 	
-	return iLen;
+	return len;
 }
 
 
@@ -120,44 +120,44 @@ int i_itoa(char * pcBuf,int iValue)
 	* @author   古么宁
 	* @brief    i_ftoa 
 	*           浮点型转字符串，保留4位小数
-	* @param    pcBuf   转字符串所在内存
-	* @param    fValue  值
+	* @param    strbuf   转字符串所在内存
+	* @param    value  值
 	* @return   字符串长度
 */
-int i_ftoa(char * pcBuf,float fValue)		
+int i_ftoa(char * strbuf,float value)		
 {
-	int iLen = 0;
-	float fVal = (fValue < 0.0f )? (0.0f - fValue) : fValue; 
-	int iIntVal   = (int)fVal;  
-	int iFloatVal =  (int)(fVal * 10000) - iIntVal * 10000;
+	int len = 0;
+	float value_fix = (value < 0.0f )? (0.0f - value) : value; 
+	int int_part   = (int)value_fix;  
+	int float_part =  (int)(value_fix * 10000) - int_part * 10000;
 
-	for(uint32_t cnt = 0 ; cnt < 4 ; ++ cnt)
+	for(uint32_t i = 0 ; i < 4 ; ++i)
 	{		
-		pcBuf[iLen++] = (char)(iFloatVal % 10 + '0');
-		iFloatVal = iFloatVal / 10;
+		strbuf[len++] = (char)(float_part % 10 + '0');
+		float_part = float_part / 10;
 	}
 	
-	pcBuf[iLen++] = '.';  
+	strbuf[len++] = '.';  
 
 	do
 	{
-		pcBuf[iLen++] = (char)(iIntVal % 10 + '0'); 
-		iIntVal = iIntVal/10;
+		strbuf[len++] = (char)(int_part % 10 + '0'); 
+		int_part = int_part/10;
 	}
-	while(iIntVal);            
+	while(int_part);            
 	
 	
-	if (fValue < 0.0f) 
-		pcBuf[iLen++] = '-'; 
+	if (value < 0.0f) 
+		strbuf[len++] = '-'; 
 	
-	for (uint8_t index = 1 ; index <= iLen/2; ++index)
+	for (uint8_t index = 1 ; index <= len/2; ++index)
 	{
-		char reverse = pcBuf[iLen  - index];  
-		pcBuf[iLen - index] = pcBuf[index -1];   
-		pcBuf[index - 1] = reverse; 
+		char reverse = strbuf[len  - index];  
+		strbuf[len - index] = strbuf[index -1];   
+		strbuf[index - 1] = reverse; 
 	}
 	
-	return iLen;
+	return len;
 }
 
 
@@ -165,29 +165,29 @@ int i_ftoa(char * pcBuf,float fValue)
 	* @author   古么宁
 	* @brief    i_itoa 
 	*           整型转十六进制字符串
-	* @param    pcBuf   转字符串所在内存
-	* @param    iValue  值
+	* @param    strbuf   转字符串所在内存
+	* @param    value  值
 	* @return   转换所得字符串长度
 */	
-int i_xtoa(char * strbuf,uint32_t iValue)		
+int i_xtoa(char * strbuf,uint32_t value)		
 {
-	int iLen = 0;
+	int len = 0;
 	
 	do{
-		char cChar = (char)((iValue & 0x0f) + '0');
-		strbuf[iLen++] = (cChar > '9') ? (cChar + 7) : (cChar);
-		iValue >>= 4;
+		char ascii = (char)((value & 0x0f) + '0');
+		strbuf[len++] = (ascii > '9') ? (ascii + 7) : (ascii);
+		value >>= 4;
 	}
-	while(iValue);
+	while(value);
 	
-	for (uint8_t index = 1 ; index <= iLen/2; ++index)
+	for (uint8_t index = 1 ; index <= len/2; ++index)
 	{
-		char reverse = strbuf[iLen  - index];  
-		strbuf[iLen - index] = strbuf[index -1];   
+		char reverse = strbuf[len  - index];  
+		strbuf[len - index] = strbuf[index -1];   
 		strbuf[index - 1] = reverse; 
 	}
 	
-	return iLen;
+	return len;
 }
 
 
@@ -203,65 +203,66 @@ int i_xtoa(char * strbuf,uint32_t iValue)
 */
 void printk(char* fmt, ...)
 {
-	char * pcInput = fmt;
-	char * pcOutput = fmt;
+	char * buf_head = fmt;
+	char * buf_tail = fmt;
 
-	if (NULL == current_puts) return ;
+	if (NULL == current_puts) 
+		return ;
 	
 	va_list ap; 
 	va_start(ap, fmt);
 
-	while (*pcOutput) //需要防止发送缓存溢出
+	while (*buf_tail) //需要防止发送缓存溢出
 	{
-		if ('%' == *pcOutput) //遇到格式化标志,为了效率仅支持 %d ,%f ,%s %x ,%c 
+		if ('%' == *buf_tail) //遇到格式化标志,为了效率仅支持 %d ,%f ,%s %x ,%c 
 		{
-			char  buf[64] = { 0 };//把数字转为字符串的缓冲区
-			char *pStrbuf = buf;  //把数字转为字符串的缓冲区
-			int   iStrlen = 0;   //最终转换长度
+			char  buf_malloc[64] = { 0 };//把数字转为字符串的缓冲区
+			char *buf = buf_malloc;  //把数字转为字符串的缓冲区
+			int   len = 0;   //最终转换长度
 			
-			if (pcOutput != pcInput)//把 % 前面的部分输出
-				current_puts(pcInput,pcOutput - pcInput);
+			if (buf_tail != buf_head)//把 % 前面的部分输出
+				current_puts(buf_head,buf_tail - buf_head);
 	
-			pcInput = pcOutput++;
-			switch (*pcOutput++) // 经过两次 ++, output 已越过 %? 
+			buf_head = buf_tail++;
+			switch (*buf_tail++) // 经过两次 ++, buf_tail 已越过 %? 
 			{
 				case 'd':
-					iStrlen = i_itoa(pStrbuf,va_arg(ap, int));
+					len = i_itoa(buf,va_arg(ap, int));
 					break;
 
 				case 'f':
-					iStrlen = i_ftoa(pStrbuf,(float)va_arg(ap, double));
+					len = i_ftoa(buf,(float)va_arg(ap, double));
 					break;
 
 				case 'x':
-					iStrlen = i_xtoa(pStrbuf,va_arg(ap, int));
+					len = i_xtoa(buf,va_arg(ap, int));
 					break;
 					
 				case 'c' :
-					pStrbuf[iStrlen++] = (char)va_arg(ap, int);
+					buf[len++] = (char)va_arg(ap, int);
 					break;
 				
 				case 's':
-					pStrbuf = va_arg(ap, char*);
-					iStrlen = strlen(pStrbuf);
+					buf = va_arg(ap, char*);
+					len = strlen(buf);
 					break;
 
 				default:continue;
 			}
 			
-			pcInput = pcOutput;
-			current_puts(pStrbuf,iStrlen);
+			buf_head = buf_tail;
+			current_puts(buf,len);
 		}
 		else
 		{
-			++pcOutput;
+			++buf_tail;
 		}
 	}
 
 	va_end(ap);
 	
-	if (pcOutput != pcInput) 
-		current_puts(pcInput,pcOutput - pcInput);
+	if (buf_tail != buf_head) 
+		current_puts(buf_head,buf_tail - buf_head);
 }
 
 

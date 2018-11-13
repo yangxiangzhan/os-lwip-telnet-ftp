@@ -371,7 +371,7 @@
  * (requires the LWIP_TCP option)
  */
 #if !defined MEMP_NUM_TCP_PCB || defined __DOXYGEN__
-#define MEMP_NUM_TCP_PCB                5
+#define MEMP_NUM_TCP_PCB                10
 #endif
 
 /**
@@ -1180,7 +1180,7 @@
  * an upper limit on the MSS advertised by the remote host.
  */
 #if !defined TCP_MSS || defined __DOXYGEN__
-#define TCP_MSS                         536
+#define TCP_MSS                         1460//536
 #endif
 
 /**

@@ -3,16 +3,16 @@
 #define _ros_Semaphore_h_
 
 
-//------------------ç®€å•ä¿¡å·é‡å®žçŽ°--------------------
+//------------------¼òµ¥ÐÅºÅÁ¿ÊµÏÖ--------------------
 typedef struct{
 	volatile int signal;
-	volatile struct protothread * wait;
+	struct protothread * wait;
 }ros_semaphore_t;
 
-// åˆå§‹åŒ–ä¸€ä¸ªä¿¡å·é‡
+// ³õÊ¼»¯Ò»¸öÐÅºÅÁ¿
 #define task_semaphore_init(sph)  do{(sph)->signal = 0;(sph)->wait = NULL;}while(0)
 
-// é‡Šæ”¾ä¸€ä¸ªä¿¡å·é‡ï¼Œæ¯”å¦‚ä¸€ä¸ªä¸­æ–­.ä¼š post ä¸€ä¸ªäº‹ä»¶ï¼ŒåŠ é€Ÿå“åº”
+// ÊÍ·ÅÒ»¸öÐÅºÅÁ¿£¬±ÈÈçÒ»¸öÖÐ¶Ï.»á post Ò»¸öÊÂ¼þ£¬¼ÓËÙÏìÓ¦
 #define task_semaphore_release(sph)\
 do{\
 	(sph)->signal = 1;  \
@@ -20,8 +20,8 @@ do{\
 		OS_task_post((sph)->wait);\
 }while(0)
 
-// ç­‰å¾…ä¸€ä¸ªäºŒå€¼ä¿¡å·é‡
-#define task_semaphore_task(sph)\
+// µÈ´ýÒ»¸ö¶þÖµÐÅºÅÁ¿
+#define task_semaphore_wait(sph)\
 do{\
 	(sph)->wait = task ;          \
 	task_cond_wait((sph)->signal);\

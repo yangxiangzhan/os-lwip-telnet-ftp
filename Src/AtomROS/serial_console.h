@@ -3,8 +3,8 @@
 
 
 
-void vSerialConsole_Init(char * info);
-void vShell_UpdateCmd(void * arg);
+void serial_console_init(char * info);
+void shell_iap_command(void * arg);
 
 #endif
 

@@ -90,10 +90,8 @@ static void __avl_rotate_left(struct avl_node *node, struct avl_root *root)
     struct avl_node *right = node->avl_right;
     struct avl_node *parent = avl_parent(node);
 
-    if ((node->avl_right = right->avl_left))
-	{
+    if ( (node->avl_right = right->avl_left) )
         avl_set_parent(right->avl_left, node);
-	}
 	
     right->avl_left = node;
 
@@ -107,9 +105,8 @@ static void __avl_rotate_left(struct avl_node *node, struct avl_root *root)
             parent->avl_right = right;
     }
     else
-	{
         root->avl_node = right;
-	}
+	
     avl_set_parent(node, right);
 }
 

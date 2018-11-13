@@ -1,5 +1,15 @@
-
-
+/**
+  ******************************************************************************
+  * @file           ftp_server.c
+  * @author         古么宁
+  * @brief          ftp 服务器
+  ******************************************************************************
+  *
+  * COPYRIGHT(c) 2018 GoodMorning
+  *
+  ******************************************************************************
+  */
+/* Includes ---------------------------------------------------*/
 #include <string.h>
 #include <stdint.h>
 
@@ -19,9 +29,9 @@
 /* Private types ------------------------------------------------------------*/
 typedef struct ftp_mbox
 {
-	struct netconn  * pCtrlConn;
+	struct netconn  * ctrl_port;
 
-	char * pcArg;
+	char * arg;
 	uint16_t arglen;
 	uint16_t event;
 	#define FTP_LIST           1U
@@ -52,21 +62,21 @@ ftpcmd_t;
 #define FTP_STR2ID(str) ((*(int*)(str)) & 0xDFDFDFDF) 
 
 // ftp 命令树构建
-#define vFTP_RegisterCommand(CMD) \
+#define FTP_REGISTER_COMMAND(CMD) \
 	do{\
 		static struct ftp_cmd CmdBuf ;      \
 		CmdBuf.Index = FTP_STR2ID(#CMD);    \
-		CmdBuf.Func  = vFtpCtrl_Cmd_##CMD;\
-		iFtp_InsertCmd(&CmdBuf);            \
+		CmdBuf.Func  = ctrl_port_reply_##CMD;\
+		ftp_insert_command(&CmdBuf);            \
 	}while(0)
 
 
 // ftp 文件列表格式
-#define vFtp_NormalList(listbuf,filesize,month,day,year,filename)\
-	sprintf(listbuf,acNormalListFormat,(filesize),acMonthList[(month)],(day),(year),(filename))
+#define NORMAL_LIST(listbuf,filesize,month,day,year,filename)\
+	sprintf(listbuf,normal_format,(filesize),month_list[(month)],(day),(year),(filename))
 
-#define vFtp_ThisYearList(listbuf,filesize,month,day,hour,min,filename)\
-	sprintf(listbuf,acThisYearListFormat,(filesize),acMonthList[(month)],(day),(hour),(min),(filename))
+#define THIS_YEAR_LIST(listbuf,filesize,month,day,hour,min,filename)\
+	sprintf(listbuf,this_year_format,(filesize),month_list[(month)],(day),(hour),(min),(filename))
 
 
 // ftp 格式一般为 xxxx /dirx/diry/\r\n ,去掉 /\r\n 提取可用路径 	
@@ -78,7 +88,7 @@ ftpcmd_t;
 		if (*pathend == '/' ) *pathend = 0;\
 	}while(0)
 			
-#define vFtp_LegalPath(path) 	\
+#define LEGAL_PATH(path) 	\
 	do{\
 		char * pathend = path;\
 		while(*path == ' ')  ++path;        \
@@ -90,17 +100,19 @@ ftpcmd_t;
 
 /* Private variables ------------------------------------------------------------*/
 
-static const char acNormalListFormat[]   = "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %5i %s\r\n";
-static const char acThisYearListFormat[] = "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n";
+static const char normal_format[]   = "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %5i %s\r\n";
+static const char this_year_format[] = "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n";
+static const char  * month_list[] = { //月份从 1 到 12 ，0 填充 NULL 
+	NULL,
+	"Jan","Feb","Mar","Apr","May","Jun",
+	"Jul","Aug","Sep","Oct","Nov","Dez" }; 
 
-static const char  * acMonthList[] = { //月份从 1 到 12 ，0 填充 NULL 
-	NULL,"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dez" };   
 
-static struct avl_root stFtpCmdTreeRoot = {.avl_node = NULL};//命令匹配的平衡二叉树树根 
+static struct avl_root ftp_root = {.avl_node = NULL};//命令匹配的平衡二叉树树根 
 
 
-static const char acFtpCtrlMsg451[] = "451 errors";
-static const char acFtpCtrlMsg226[] = "226 transfer complete\r\n";
+static const char ftp_msg_451[] = "451 errors";
+static const char ftp_msg_226[] = "226 transfer complete\r\n";
 
 
 
@@ -119,14 +131,14 @@ static void vFtpDataPortPro(void const * arg);
 /* Gorgeous Split-line -----------------------------------------------*/
 
 /**
-	* @brief    iFtp_InsertCmd 
+	* @brief    ftp_insert_command 
 	*           命令树插入
 	* @param    pCmd        命令控制块
 	* @return   成功返回 0
 */
-static int iFtp_InsertCmd(struct ftp_cmd * pCmd)
+static int ftp_insert_command(struct ftp_cmd * pCmd)
 {
-	struct avl_node **tmp = &stFtpCmdTreeRoot.avl_node;
+	struct avl_node **tmp = &ftp_root.avl_node;
  	struct avl_node *parent = NULL;
 	
 	/* Figure out where to put new node */
@@ -147,21 +159,21 @@ static int iFtp_InsertCmd(struct ftp_cmd * pCmd)
 	/* Add new node and rebalance tree. */
 	//rb_link_node(&pCmd->cmd_node, parent, tmp);
 	//rb_insert_color(&pCmd->cmd_node, root);
-	avl_insert(&stFtpCmdTreeRoot,&pCmd->cmd_node,parent,tmp);
+	avl_insert(&ftp_root,&pCmd->cmd_node,parent,tmp);
 	
 	return 0;
 }
 
 
 /**
-	* @brief    pFtp_SearchCmd 
+	* @brief    ftp_search_command 
 	*           命令树查找，根据 Index 号找到对应的控制块
 	* @param    Index        命令号
 	* @return   成功 Index 号对应的控制块
 */
-static struct ftp_cmd *pFtp_SearchCmd(int iCtrlCmd)
+static struct ftp_cmd *ftp_search_command(int iCtrlCmd)
 {
-    struct avl_node *node = stFtpCmdTreeRoot.avl_node;
+    struct avl_node *node = ftp_root.avl_node;
 
     while (node) 
 	{
@@ -184,75 +196,75 @@ static struct ftp_cmd *pFtp_SearchCmd(int iCtrlCmd)
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_USER 
+	* @brief    ctrl_port_reply_USER 
 	*           ftp 命令端口输入 USER ，系统登陆的用户名
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_USER(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_USER(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReply[] = "230 Operation successful\r\n";  //230 登陆因特网
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,sizeof(acFtpReply)-1,NETCONN_NOCOPY);
+	static const char reply_msg[] = "230 Operation successful\r\n";  //230 登陆因特网
+	netconn_write(msgbox->ctrl_port,reply_msg,sizeof(reply_msg)-1,NETCONN_NOCOPY);
 }
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_SYST 
+	* @brief    ctrl_port_reply_SYST 
 	*           ftp 命令端口输入 SYST ，返回服务器使用的操作系统
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_SYST(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_SYST(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReply[] = "215 UNIX Type: L8\r\n";  //215 系统类型回复
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,sizeof(acFtpReply)-1,NETCONN_NOCOPY);
+	static const char reply_msg[] = "215 UNIX Type: L8\r\n";  //215 系统类型回复
+	netconn_write(msgbox->ctrl_port,reply_msg,sizeof(reply_msg)-1,NETCONN_NOCOPY);
 }
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_PWD 
+	* @brief    ctrl_port_reply_PWD 
 	*           ftp 命令端口输入 PWD
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_PWD(struct ftp_mbox * pFtpMBox) //显示当前工作目录
+static void ctrl_port_reply_PWD(struct ftp_mbox * msgbox) //显示当前工作目录
 {
 	#if 1
-	char acFtpReply[128] ;//257 路径名建立
-	sprintf(acFtpReply,"257 \"%s/\"\r\n",pFtpMBox->acCurrentDir);
+	char reply_msg[128] ;//257 路径名建立
+	sprintf(reply_msg,"257 \"%s/\"\r\n",msgbox->acCurrentDir);
 	#else
-	static const char acFtpReply[] = "257 \"/\"\r\n";
+	static const char reply_msg[] = "257 \"/\"\r\n";
 	#endif
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,strlen(acFtpReply),NETCONN_COPY);
+	netconn_write(msgbox->ctrl_port,reply_msg,strlen(reply_msg),NETCONN_COPY);
 }
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_NOOP 
+	* @brief    ctrl_port_reply_NOOP 
 	*           ftp 命令端口输入 NOOP
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_NOOP(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_NOOP(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReply[] = "200 Operation successful\r\n";
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,sizeof(acFtpReply)-1,NETCONN_NOCOPY);
+	static const char reply_msg[] = "200 Operation successful\r\n";
+	netconn_write(msgbox->ctrl_port,reply_msg,sizeof(reply_msg)-1,NETCONN_NOCOPY);
 }
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_CWD 
+	* @brief    ctrl_port_reply_CWD 
 	*           ftp 命令端口输入 CWD
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_CWD(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_CWD(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReply[] = "250 Operation successful\r\n"; //257 路径名建立
+	static const char reply_msg[] = "250 Operation successful\r\n"; //257 路径名建立
 
 	DIR fsdir;
-	char * pcFilePath = pFtpMBox->pcArg;
-	char * pcPathEnd = pFtpMBox->pcArg + pFtpMBox->arglen - 1;
+	char * pcFilePath = msgbox->arg;
+	char * pcPathEnd = msgbox->arg + msgbox->arglen - 1;
 	
 	vFtp_GetLegalPath(pcFilePath,pcPathEnd);
 	
@@ -267,38 +279,38 @@ static void vFtpCtrl_Cmd_CWD(struct ftp_mbox * pFtpMBox)
 	f_closedir(&fsdir);
 	
 	if (pcPathEnd != pcFilePath)
-		memcpy(pFtpMBox->acCurrentDir,pcFilePath,pcPathEnd - pcFilePath);
+		memcpy(msgbox->acCurrentDir,pcFilePath,pcPathEnd - pcFilePath);
 	
-	pFtpMBox->acCurrentDir[pcPathEnd - pcFilePath] = 0;
+	msgbox->acCurrentDir[pcPathEnd - pcFilePath] = 0;
 
 CWDdone:
 
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,sizeof(acFtpReply)-1,NETCONN_NOCOPY);
+	netconn_write(msgbox->ctrl_port,reply_msg,sizeof(reply_msg)-1,NETCONN_NOCOPY);
 }
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_PASV 
+	* @brief    ctrl_port_reply_PASV 
 	*           ftp 命令端口输入 PASV ，被动模式
 	*           
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_PASV(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_PASV(struct ftp_mbox * msgbox)
 {
-	static char acFtpReply[64] = {0} ; //"227 PASV ok(192,168,40,104,185,198)\r\n"
+	static char reply_msg[64] = {0} ; //"227 PASV ok(192,168,40,104,185,198)\r\n"
 
-	uint32_t iFtpRplyLen = strlen(acFtpReply);
+	uint32_t iFtpRplyLen = strlen(reply_msg);
 	
 	if (0 == iFtpRplyLen) // 未初始化信息
 	{
-		sprintf(acFtpReply,"227 PASV ok(%d,%d,%d,%d,%d,%d)\r\n",
+		sprintf(reply_msg,"227 PASV ok(%d,%d,%d,%d,%d,%d)\r\n",
 			IP_ADDRESS[0],IP_ADDRESS[1],IP_ADDRESS[2],IP_ADDRESS[3],(FTP_DATA_PORT>>8),FTP_DATA_PORT&0x00ff);
 
-		iFtpRplyLen = strlen(acFtpReply);
+		iFtpRplyLen = strlen(reply_msg);
 	}
 	
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,iFtpRplyLen,NETCONN_NOCOPY);
+	netconn_write(msgbox->ctrl_port,reply_msg,iFtpRplyLen,NETCONN_NOCOPY);
 	
 	printk("data port standby\r\n");
 }
@@ -308,46 +320,46 @@ static void vFtpCtrl_Cmd_PASV(struct ftp_mbox * pFtpMBox)
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_LIST 
+	* @brief    ctrl_port_reply_LIST 
 	*           ftp 命令端口输入 LIST , 获取当前文件列表
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_LIST(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_LIST(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReply[] = "150 Directory listing\r\n" ;//150 打开连接
+	static const char reply_msg[] = "150 Directory listing\r\n" ;//150 打开连接
 	//1.在控制端口对 LIST 命令进行回复
 	//2.在数据端口发送 "total 0"，这个貌似可以没有
 	//3.在数据端口发送文件列表
 	//4.关闭数据端口
 	
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,sizeof(acFtpReply)-1,NETCONN_NOCOPY);
-	pFtpMBox->event = FTP_LIST; //事件为列表事件
+	netconn_write(msgbox->ctrl_port,reply_msg,sizeof(reply_msg)-1,NETCONN_NOCOPY);
+	msgbox->event = FTP_LIST; //事件为列表事件
 
 	//发送此信息至数据端口任务
-	while(osMessagePut(osFtpDataPortmbox,(uint32_t)pFtpMBox , osWaitForever) != osOK);
+	while(osMessagePut(osFtpDataPortmbox,(uint32_t)msgbox , osWaitForever) != osOK);
 
 }
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_SIZE
+	* @brief    ctrl_port_reply_SIZE
 	*           ftp 命令端口输入 SIZE , 获取当前文件列表
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_SIZE(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_SIZE(struct ftp_mbox * msgbox)
 {
 	char acFtpBuf[128];
 	uint32_t iFileSize;
-	char * pcFilePath = pFtpMBox->pcArg;
-	char * pcPathEnd  = pFtpMBox->pcArg + pFtpMBox->arglen - 1;
+	char * pcFilePath = msgbox->arg;
+	char * pcPathEnd  = msgbox->arg + msgbox->arglen - 1;
 
 	vFtp_GetLegalPath(pcFilePath,pcPathEnd);
 
 	if (*pcFilePath != '/')//相对路径补全为绝对路径
 	{
-		sprintf(acFtpBuf,"%s/%s",pFtpMBox->acCurrentDir,pcFilePath);
+		sprintf(acFtpBuf,"%s/%s",msgbox->acCurrentDir,pcFilePath);
 		pcFilePath = acFtpBuf;
 	}
 
@@ -362,52 +374,52 @@ static void vFtpCtrl_Cmd_SIZE(struct ftp_mbox * pFtpMBox)
 	f_close(&SDFile);
 
 SIZEdone:	
-	netconn_write(pFtpMBox->pCtrlConn,acFtpBuf,strlen(acFtpBuf),NETCONN_COPY);
+	netconn_write(msgbox->ctrl_port,acFtpBuf,strlen(acFtpBuf),NETCONN_COPY);
 }
 
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_RETR
+	* @brief    ctrl_port_reply_RETR
 	*           ftp 命令端口输入 RETR
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_RETR(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_RETR(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReply[] = "108 Operation successful\r\n" ;
+	static const char reply_msg[] = "108 Operation successful\r\n" ;
 
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReply,sizeof(acFtpReply)-1,NETCONN_COPY);
+	netconn_write(msgbox->ctrl_port,reply_msg,sizeof(reply_msg)-1,NETCONN_COPY);
 	
-	pFtpMBox->event = FTP_SEND_FILE_DATA; 
+	msgbox->event = FTP_SEND_FILE_DATA; 
 
 	//发送此信息至数据端口任务
-	while(osMessagePut(osFtpDataPortmbox,(uint32_t)pFtpMBox , osWaitForever) != osOK);
+	while(osMessagePut(osFtpDataPortmbox,(uint32_t)msgbox , osWaitForever) != osOK);
 }
 
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_DELE
+	* @brief    ctrl_port_reply_DELE
 	*           ftp 命令端口输入 RETR
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_DELE(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_DELE(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReplyOK[] = "250 Operation successful\r\n" ;
-	static const char acFtpReplyError[] = "450 Operation error\r\n" ;
+	static const char reply_msgOK[] = "250 Operation successful\r\n" ;
+	static const char reply_msgError[] = "450 Operation error\r\n" ;
 	FRESULT res;
 	char databuf[128];
-	char * pcFilePath = pFtpMBox->pcArg;
-	char * pcPathEnd = pFtpMBox->pcArg + pFtpMBox->arglen - 1;
+	char * pcFilePath = msgbox->arg;
+	char * pcPathEnd = msgbox->arg + msgbox->arglen - 1;
 	vFtp_GetLegalPath(pcFilePath,pcPathEnd);
 
-//	vFtp_LegalPath(pcFilePath);
+//	LEGAL_PATH(pcFilePath);
 
 	if (*pcFilePath != '/')//相对路径
 	{
-		sprintf(databuf,"%s/%s",pFtpMBox->acCurrentDir,pcFilePath);
+		sprintf(databuf,"%s/%s",msgbox->acCurrentDir,pcFilePath);
 		pcFilePath = databuf;
 	}
 	
@@ -417,11 +429,11 @@ static void vFtpCtrl_Cmd_DELE(struct ftp_mbox * pFtpMBox)
 	if (FR_OK != res)
 		goto DeleError;
 	
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReplyOK,sizeof(acFtpReplyOK)-1,NETCONN_NOCOPY);
+	netconn_write(msgbox->ctrl_port,reply_msgOK,sizeof(reply_msgOK)-1,NETCONN_NOCOPY);
 	return ;
 
 DeleError:	
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReplyError,sizeof(acFtpReplyError)-1,NETCONN_NOCOPY);
+	netconn_write(msgbox->ctrl_port,reply_msgError,sizeof(reply_msgError)-1,NETCONN_NOCOPY);
 
 	printk("dele error code:%d\r\n",res);
 	return ;
@@ -430,21 +442,21 @@ DeleError:
 
 
 /**
-	* @brief    vFtpCtrl_Cmd_STOR
+	* @brief    ctrl_port_reply_STOR
 	*           ftp 命令端口输入 STOR
 	* @param    arg 命令所跟参数
 	* @return   NULL
 */
-static void vFtpCtrl_Cmd_STOR(struct ftp_mbox * pFtpMBox)
+static void ctrl_port_reply_STOR(struct ftp_mbox * msgbox)
 {
-	static const char acFtpReplyOK[] = "125 Waiting\r\n" ;
+	static const char reply_msgOK[] = "125 Waiting\r\n" ;
 
-	netconn_write(pFtpMBox->pCtrlConn,acFtpReplyOK,sizeof(acFtpReplyOK)-1,NETCONN_NOCOPY);
+	netconn_write(msgbox->ctrl_port,reply_msgOK,sizeof(reply_msgOK)-1,NETCONN_NOCOPY);
 
-	pFtpMBox->event = FTP_RECV_FILE;
+	msgbox->event = FTP_RECV_FILE;
 
 	//发送此信息至数据端口任务
-	while(osMessagePut(osFtpDataPortmbox,(uint32_t)pFtpMBox , osWaitForever) != osOK);
+	while(osMessagePut(osFtpDataPortmbox,(uint32_t)msgbox , osWaitForever) != osOK);
 }
 
 
@@ -456,8 +468,8 @@ static void vFtpCtrl_Cmd_STOR(struct ftp_mbox * pFtpMBox)
 */
 static void vFtpCtrlPortPro(void const * arg)
 {
-	static const char acFtpUnknownCmd[] = "500 Unknown command\r\n";
-	static const char acFtpConnect[] = "220 Operation successful\r\n";
+	static const char ftp_reply_unkown[] = "500 Unknown command\r\n";
+	static const char ftp_connect_msg[] = "220 Operation successful\r\n";
 
 	char *    pcRxbuf;
 	uint16_t  sRxlen;
@@ -466,14 +478,14 @@ static void vFtpCtrlPortPro(void const * arg)
 	struct netbuf   * pFtpCmdBuf;
 	
 	struct ftp_cmd * pCmdMatch;
-	struct ftp_mbox  stFtpMBox;
+	struct ftp_mbox  msgbox;
 
-	stFtpMBox.pCtrlConn = (struct netconn *)arg; //当前 ftp 控制端口连接句柄	
-	stFtpMBox.acCurrentDir[0] = 0;               //路径为空，即根目录
+	msgbox.ctrl_port = (struct netconn *)arg; //当前 ftp 控制端口连接句柄	
+	msgbox.acCurrentDir[0] = 0;               //路径为空，即根目录
 	
-	netconn_write(stFtpMBox.pCtrlConn,acFtpConnect,sizeof(acFtpConnect)-1,NETCONN_NOCOPY);
+	netconn_write(msgbox.ctrl_port,ftp_connect_msg,sizeof(ftp_connect_msg)-1,NETCONN_NOCOPY);
 
-	while(ERR_OK == netconn_recv(stFtpMBox.pCtrlConn, &pFtpCmdBuf))  //阻塞直到收到数据
+	while(ERR_OK == netconn_recv(msgbox.ctrl_port, &pFtpCmdBuf))  //阻塞直到收到数据
 	{
 		do
 		{
@@ -483,29 +495,29 @@ static void vFtpCtrlPortPro(void const * arg)
 			if ( pcRxbuf[3] < 'A' || pcRxbuf[3] > 'z' )//有些命令只有三个字节，需要判断
 			{
 				iCtrlCmd &= 0x00ffffff;
-				stFtpMBox.pcArg = pcRxbuf + 4;
-				stFtpMBox.arglen = sRxlen - 4;
+				msgbox.arg = pcRxbuf + 4;
+				msgbox.arglen = sRxlen - 4;
 			}
 			else
 			{
-				stFtpMBox.pcArg = pcRxbuf + 5;
-				stFtpMBox.arglen = sRxlen - 5;
+				msgbox.arg = pcRxbuf + 5;
+				msgbox.arglen = sRxlen - 5;
 			}
 			
-			pCmdMatch = pFtp_SearchCmd(iCtrlCmd);//匹配命令号
+			pCmdMatch = ftp_search_command(iCtrlCmd);//匹配命令号
 			
 			if (NULL == pCmdMatch)
-				netconn_write(stFtpMBox.pCtrlConn,acFtpUnknownCmd,sizeof(acFtpUnknownCmd)-1,NETCONN_NOCOPY);
+				netconn_write(msgbox.ctrl_port,ftp_reply_unkown,sizeof(ftp_reply_unkown)-1,NETCONN_NOCOPY);
 			else
-				pCmdMatch->Func(&stFtpMBox);
+				pCmdMatch->Func(&msgbox);
 		}
 		while(netbuf_next(pFtpCmdBuf) >= 0);
 		
 		netbuf_delete(pFtpCmdBuf);
 	}
 
-	netconn_close(stFtpMBox.pCtrlConn); //关闭链接
-	netconn_delete(stFtpMBox.pCtrlConn);//清空释放连接的内存
+	netconn_close(msgbox.ctrl_port); //关闭链接
+	netconn_delete(msgbox.ctrl_port);//清空释放连接的内存
 	
 	color_printk(green,"\r\n|!ftp disconnect!|\r\n");
 	
@@ -518,14 +530,14 @@ static void vFtpCtrlPortPro(void const * arg)
 
 
 /* Start node to be scanned (***also used as work area***) */
-static char * pcFtpData_ScanDir (struct netconn * pFtpDataPortConn,struct ftp_mbox * pFtpMBox)
+static char * data_port_list_file (struct netconn * data_port_conn,struct ftp_mbox * msgbox)
 {
-	char * pcFtpCtrlReply = (char *)acFtpCtrlMsg226;
-	char   acFtpListBuf[128] ;
+	char * ctrl_msg = (char *)ftp_msg_226;
+	char   list_buf[128] ;
     DIR dir;
 	FILINFO fno;
 
-	if (FR_OK != f_opendir(&dir, pFtpMBox->acCurrentDir))
+	if (FR_OK != f_opendir(&dir, msgbox->acCurrentDir))
 	{
 		goto ScanDirDone ;
 	}
@@ -546,45 +558,45 @@ static char * pcFtpData_ScanDir (struct netconn * pFtpDataPortConn,struct ftp_mb
 		pStTime = (struct FileTime *)(&fno.ftime);
 		
 		if (fno.fdate == 0 || fno.ftime == 0) //没有日期的文件
-			vFtp_NormalList(acFtpListBuf,fno.fsize,1,1,1980,fno.fname);
+			NORMAL_LIST(list_buf,fno.fsize,1,1,1980,fno.fname);
 		else
 		if (pStDate->Year + 1980 == 2018) //同一年的文件
-			vFtp_ThisYearList(acFtpListBuf,fno.fsize,pStDate->Month,pStDate->Day,pStTime->Hour,pStTime->Min,fno.fname);
+			THIS_YEAR_LIST(list_buf,fno.fsize,pStDate->Month,pStDate->Day,pStTime->Hour,pStTime->Min,fno.fname);
 		else
-			vFtp_NormalList(acFtpListBuf,fno.fsize,pStDate->Month,pStDate->Day,pStDate->Year+1980,fno.fname);
+			NORMAL_LIST(list_buf,fno.fsize,pStDate->Month,pStDate->Day,pStDate->Year+1980,fno.fname);
 		
 		if (fno.fattrib & AM_DIR )   /* It is a directory */
-			acFtpListBuf[0] = 'd';
+			list_buf[0] = 'd';
 		
-		netconn_write(pFtpDataPortConn,acFtpListBuf,strlen(acFtpListBuf),NETCONN_COPY);
+		netconn_write(data_port_conn,list_buf,strlen(list_buf),NETCONN_COPY);
     }
 	
 	f_closedir(&dir); //把路径关闭
 
 ScanDirDone:
-	return pcFtpCtrlReply;
+	return ctrl_msg;
 }
 
 
 
 
-static char * pcFtpData_SendFile(struct netconn * pFtpDataPortConn,struct ftp_mbox * pFtpMBox)
+static char * data_port_send_file(struct netconn * data_port_conn,struct ftp_mbox * msgbox)
 {
-	char * pcFtpCtrlReply = (char *)acFtpCtrlMsg451;
+	char * ctrl_msg = (char *)ftp_msg_451;
 	
 	FIL FileSend; 		 /* File object */
 	FRESULT res ;
 	uint32_t iFileSize;
 	uint32_t iReadSize;
-	char * pcFilePath = pFtpMBox->pcArg;
-	char * pcPathEnd = pFtpMBox->pcArg + pFtpMBox->arglen - 1;
+	char * pcFilePath = msgbox->arg;
+	char * pcPathEnd = msgbox->arg + msgbox->arglen - 1;
 	char  databuf[128];
 
 	vFtp_GetLegalPath(pcFilePath,pcPathEnd);
 
 	if (*pcFilePath != '/')//相对路径
 	{
-		sprintf(databuf,"%s/%s",pFtpMBox->acCurrentDir,pcFilePath);
+		sprintf(databuf,"%s/%s",msgbox->acCurrentDir,pcFilePath);
 		pcFilePath = databuf;
 	}
 
@@ -607,40 +619,40 @@ static char * pcFtpData_SendFile(struct netconn * pFtpDataPortConn,struct ftp_mb
 		}
 		else
 		{
-			netconn_write(pFtpDataPortConn,databuf,iReadSize,NETCONN_COPY);
+			netconn_write(data_port_conn,databuf,iReadSize,NETCONN_COPY);
 			iFileSize -= iReadSize;
 		}
 	}
 	
-	pcFtpCtrlReply = (char *)acFtpCtrlMsg226;
+	ctrl_msg = (char *)ftp_msg_226;
 	f_close(&FileSend);
 
 SendEnd:
 
-	return pcFtpCtrlReply;//216
+	return ctrl_msg;//216
 }
 
 
 
-static char * pcFtpData_RecvFile(struct netconn * pFtpDataPortConn,struct ftp_mbox * pFtpMBox)
+static char * data_port_recv_file(struct netconn * data_port_conn,struct ftp_mbox * msgbox)
 {
-	static char g_acRecvBuf[TCP_MSS] ;//需要把数据拷出来，否则容易出错
+	static __align(4) char recv_buf[TCP_MSS] ;// fatfs 写文件的时候，buf要地址对齐，否则容易出错
 	
-	char * pcFtpCtrlReply = (char *)acFtpCtrlMsg451;
+	char * ctrl_msg = (char *)ftp_msg_451;
 	FIL RecvFile; 		 /* File object */
 	FRESULT res;
-	char * pcFile = pFtpMBox->pcArg;
-	char * pcPathEnd = pFtpMBox->pcArg + pFtpMBox->arglen - 1;
+	char * pcFile = msgbox->arg;
+	char * pcPathEnd = msgbox->arg + msgbox->arglen - 1;
 	char   databuf[128];
 	uint16_t sRxlen;
 	uint32_t byteswritten;
-	struct netbuf  * pFtpDataBuf;
+	struct netbuf  * data_netbuf;
 
 	vFtp_GetLegalPath(pcFile,pcPathEnd);
 
 	if (*pcFile != '/')//相对路径
 	{
-		sprintf(databuf,"%s/%s",pFtpMBox->acCurrentDir,pcFile);
+		sprintf(databuf,"%s/%s",msgbox->acCurrentDir,pcFile);
 		pcFile = databuf;
 	}
 	
@@ -651,14 +663,14 @@ static char * pcFtpData_RecvFile(struct netconn * pFtpDataPortConn,struct ftp_mb
 		goto RecvEnd;
 	}
 	printk("recvfile");
-	while(ERR_OK == netconn_recv(pFtpDataPortConn, &pFtpDataBuf))  //阻塞直到收到数据
+	while(ERR_OK == netconn_recv(data_port_conn, &data_netbuf))  //阻塞直到收到数据
 	{
 		do{
-			netbuf_data(pFtpDataBuf, (void**)&pcFile, &sRxlen); //提取数据指针
+			netbuf_data(data_netbuf, (void**)&pcFile, &sRxlen); //提取数据指针
 
 			#if 1
-			memcpy(g_acRecvBuf,pcFile,sRxlen);//把数据拷出来，否则容易出错
-			pcFile = g_acRecvBuf;
+			memcpy(recv_buf,pcFile,sRxlen);//把数据拷出来，否则容易出错
+			pcFile = recv_buf;
 			#endif
 			
 			res = f_write(&RecvFile,(void*)pcFile, sRxlen, &byteswritten);
@@ -671,19 +683,19 @@ static char * pcFtpData_RecvFile(struct netconn * pFtpDataPortConn,struct ftp_mb
 				goto RecvEnd;
 			}
 		}
-		while(netbuf_next(pFtpDataBuf) >= 0);
+		while(netbuf_next(data_netbuf) >= 0);
 		
-		netbuf_delete(pFtpDataBuf);
+		netbuf_delete(data_netbuf);
 	}
 	
 	printk("done\r\n");
 
-	pcFtpCtrlReply = (char *)acFtpCtrlMsg226;
+	ctrl_msg = (char *)ftp_msg_226;
 	f_close(&RecvFile);
 
 RecvEnd:
 	
-	return pcFtpCtrlReply;
+	return ctrl_msg;
 }
 
 
@@ -696,45 +708,45 @@ RecvEnd:
 */
 static void vFtpDataPortPro(void const * arg)
 {	
-	struct netconn * pFtpDataPortListen;
-	struct netconn * pFtpDataPortConn;
+	struct netconn * data_port_listen;
+	struct netconn * data_port_conn;
 	
-	struct ftp_mbox * pMbox;
-	char * pcCtrlReply;
+	struct ftp_mbox * msgbox;
+	char * ctrl_msg;
 	osEvent event;
 
-	pFtpDataPortListen = netconn_new(NETCONN_TCP); //创建一个 TCP 链接
-	netconn_bind(pFtpDataPortListen,IP_ADDR_ANY,FTP_DATA_PORT); //绑定 数据端口
-	netconn_listen(pFtpDataPortListen); //进入监听模式
+	data_port_listen = netconn_new(NETCONN_TCP); //创建一个 TCP 链接
+	netconn_bind(data_port_listen,IP_ADDR_ANY,FTP_DATA_PORT); //绑定 数据端口
+	netconn_listen(data_port_listen); //进入监听模式
 
 	while(1)
 	{
-		if (ERR_OK == netconn_accept(pFtpDataPortListen,&pFtpDataPortConn)) //阻塞直到有 ftp 连接请求
+		if (ERR_OK == netconn_accept(data_port_listen,&data_port_conn)) //阻塞直到有 ftp 连接请求
 		{
 			event = osMessageGet(osFtpDataPortmbox,osWaitForever);//等待操作邮箱
-			pMbox = (struct ftp_mbox *)(event.value.p);//获取操作类型
+			msgbox = (struct ftp_mbox *)(event.value.p);//获取操作类型
 
-			switch(pMbox->event) //根据不同的操作命令进行操作
+			switch(msgbox->event) //根据不同的操作命令进行操作
 			{
 				case FTP_LIST :
-					pcCtrlReply = pcFtpData_ScanDir(pFtpDataPortConn,pMbox);
+					ctrl_msg = data_port_list_file(data_port_conn,msgbox);
 					break;
 				
 				case FTP_SEND_FILE_DATA:
-					pcCtrlReply = pcFtpData_SendFile(pFtpDataPortConn,pMbox);
+					ctrl_msg = data_port_send_file(data_port_conn,msgbox);
 					break;
 					
 				case FTP_RECV_FILE:
-					pcCtrlReply = pcFtpData_RecvFile(pFtpDataPortConn,pMbox);
+					ctrl_msg = data_port_recv_file(data_port_conn,msgbox);
 					break;
 
 				default: ;
 			}
 
-			netconn_write(pMbox->pCtrlConn,pcCtrlReply,strlen(pcCtrlReply),NETCONN_NOCOPY);//控制端口反馈
+			netconn_write(msgbox->ctrl_port,ctrl_msg,strlen(ctrl_msg),NETCONN_NOCOPY);//控制端口反馈
 			
-			netconn_close(pFtpDataPortConn); //关闭数据端口链接
-			netconn_delete(pFtpDataPortConn);//清空释放连接的内存
+			netconn_close(data_port_conn); //关闭数据端口链接
+			netconn_delete(data_port_conn);//清空释放连接的内存
 			
 			printk("data port shutdown!\r\n");
 		}
@@ -744,8 +756,8 @@ static void vFtpDataPortPro(void const * arg)
 		}
 	}
 		
-	netconn_close(pFtpDataPortListen); //关闭链接
-	netconn_delete(pFtpDataPortListen);//清空释放连接的内存
+	netconn_close(data_port_listen); //关闭链接
+	netconn_delete(data_port_listen);//清空释放连接的内存
 
 	vTaskDelete(NULL);//连接断开时删除自己
 
@@ -788,21 +800,21 @@ static void vFtp_ServerConn(void const * arg)
 
 void vFtp_ServerInit(void)
 {
-	pfnFTPx_t vFtpCtrl_Cmd_TYPE = vFtpCtrl_Cmd_NOOP;
+	pfnFTPx_t ctrl_port_reply_TYPE = ctrl_port_reply_NOOP;
 
 	//生成相关的命令二叉树
-	vFTP_RegisterCommand(USER);
-	vFTP_RegisterCommand(SYST);
-	vFTP_RegisterCommand(PWD);
-	vFTP_RegisterCommand(CWD);
-	vFTP_RegisterCommand(PASV);
-	vFTP_RegisterCommand(LIST);
-	vFTP_RegisterCommand(NOOP);
-	vFTP_RegisterCommand(TYPE);
-	vFTP_RegisterCommand(SIZE);
-	vFTP_RegisterCommand(RETR);
-	vFTP_RegisterCommand(DELE);
-	vFTP_RegisterCommand(STOR);
+	FTP_REGISTER_COMMAND(USER);
+	FTP_REGISTER_COMMAND(SYST);
+	FTP_REGISTER_COMMAND(PWD);
+	FTP_REGISTER_COMMAND(CWD);
+	FTP_REGISTER_COMMAND(PASV);
+	FTP_REGISTER_COMMAND(LIST);
+	FTP_REGISTER_COMMAND(NOOP);
+	FTP_REGISTER_COMMAND(TYPE);
+	FTP_REGISTER_COMMAND(SIZE);
+	FTP_REGISTER_COMMAND(RETR);
+	FTP_REGISTER_COMMAND(DELE);
+	FTP_REGISTER_COMMAND(STOR);
 	
 	osThreadDef(FtpServer, vFtp_ServerConn, osPriorityNormal, 0, 128);
 	osThreadCreate(osThread(FtpServer), NULL);//初始化完 lwip 后创建tcp服务器监听任务

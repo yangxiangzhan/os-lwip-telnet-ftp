@@ -1,9 +1,9 @@
 /**
   ******************************************************************************
   * @file           serial_console.c
-  * @author         杨翔湛
+  * @author         杨翔�?
   * @brief          serial_console file
-                    串口控制台文件。文件不直接操作硬件，依赖 serial_hal
+                    串口控制台文件。文件不直接操作硬件，依�?serial_hal
   ******************************************************************************
   *
   * COPYRIGHT(c) 2018 GoodMorning
@@ -13,15 +13,15 @@
 /* Includes ---------------------------------------------------*/
 #include <string.h>
 #include <stdarg.h>
-#include <stdint.h> //定义了很多数据类型
+#include <stdint.h> //定义了很多数据类�?
 
 #include "cmsis_os.h" // 启用 freertos
 
 #include "shell.h"
 #include "serial_hal.h"
 #include "serial_console.h"
-
-//--------------------相关宏定义及结构体定义--------------------
+#include "iap_hal.h"
+//--------------------相关宏定义及结构体定�?-------------------
 osThreadId SerialConsoleTaskHandle;
 osSemaphoreId osSerialRxSemHandle;
 static char acTaskListBuf[512];
@@ -71,12 +71,12 @@ void task_SerialConsole(void const * argument)
 	char *info = (char *)argument;
 	uint16_t len ;
 
-	vUsartHal_Init(); //先初始化硬件层
-	vShell_InitBuf(&stUsartShellBuf,vUsartHal_Output);
+	hal_serial_init(); //先初始化硬件�?
+	SHELL_MALLOC(&stUsartShellBuf,serial_puts);
 	
-	vShell_RegisterCommand("top"   ,vShell_GetTaskList);
-	vShell_RegisterCommand("ps"    ,vShell_GetTaskRuntime);
-	vShell_RegisterCommand("reboot",vShell_RebootSystem);
+	shell_register_command("top"   ,vShell_GetTaskList);
+	shell_register_command("ps"    ,vShell_GetTaskRuntime);
+	shell_register_command("reboot",shell_reboot_command);
 	
 	printk("\r\n");
 	color_printk(purple,"%s",info);//打印开机信息或者控制台信息
@@ -85,17 +85,17 @@ void task_SerialConsole(void const * argument)
 	{
 		if (osOK == osSemaphoreWait(osSerialRxSemHandle,osWaitForever))
 		{
-			while(iUsartHal_RxPktOut(&info,&len))
-				vShell_Input(&stUsartShellBuf,info,len);
+			while(serial_rxpkt_queue_out(&info,&len))
+				shell_input(&stUsartShellBuf,info,len);
 		}
 	}
 }
 
 
-void vSerialConsole_Init(char * info)
+void serial_console_init(char * info)
 {
 	osSemaphoreDef(osSerialRxSem);
-	osSerialRxSemHandle = osSemaphoreCreate(osSemaphore(osSerialRxSem), 1); //创建中断信号量
+	osSerialRxSemHandle = osSemaphoreCreate(osSemaphore(osSerialRxSem), 1); //创建中断信号�?
   
 	osThreadDef(SerialConsole, task_SerialConsole, osPriorityNormal, 0, 256);
 	SerialConsoleTaskHandle = osThreadCreate(osThread(SerialConsole), info);

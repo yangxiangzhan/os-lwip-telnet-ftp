@@ -1,23 +1,20 @@
-
-
-
 #ifndef __pseudo_mutex_h__
 #define __pseudo_mutex_h__
 
 
-//------------------ç®€å•äº’æ–¥é‡å®žçŽ°--------------------
+//------------------¼òµ¥»¥³âÁ¿ÊµÏÖ--------------------
 typedef struct{
 	volatile struct protothread * lock;
 }ros_mutex_t; 
 
 
-// åˆå§‹åŒ–ä¸€ä¸ª mutex 
+// ³õÊ¼»¯Ò»¸ö mutex 
 #define task_mutex_init(mx)       (mx)->lock = NULL
 
-// ä¸Šé” mutex ï¼Œå¤±è´¥åˆ™æŒ‚èµ·ï¼Œç›´è‡³ä¸Šé”æˆåŠŸ 
+// ÉÏËø mutex £¬Ê§°ÜÔò¹ÒÆð£¬Ö±ÖÁÉÏËø³É¹¦ 
 #define task_mutex_lock(mx)       task_cond_while((mx)->lock);(mx)->lock = task
 
-// è§£é” mutex ,ä¸èƒ½è§£é”å¦ä¸€ä¸ªä»»åŠ¡ä¸Šçš„é”
+// ½âËø mutex ,²»ÄÜ½âËøÁíÒ»¸öÈÎÎñÉÏµÄËø
 #define task_mutex_unlock(mx)     if ((mx)->lock == task)  (mx)->lock = NULL
 
 #define task_mutex_is_locked(mx)  ((mx)->lock)

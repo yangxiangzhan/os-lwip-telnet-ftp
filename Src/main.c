@@ -68,12 +68,12 @@
 /* Private variables ---------------------------------------------------------*/
 
 // 控制台图标
-const char acSTM32LOGO[]=
+const char stm32logo[]=
 "\r\n\r\n\
 	 ____  _____  __  __  ____  ____\r\n\
 	/ ___||__ __||  \\/  ||___ \\|___ \\COPYRIGHT(c):\r\n\
 	\\___ \\  | |  | |\\/| | |__ |/ ___/GoodMorning\r\n\
-	|____/  |_|  |_|  |_||____/\\____|2018/08\r\n\r\n";
+	|____/  |_|  |_|  |_||____/\\____|2018/11\r\n\r\n";
 
 /* USER CODE END PV */
 
@@ -102,6 +102,7 @@ int main(void)
  /* 如果动用了 freertos ，在stm32f429xx.h 把 __NVIC_PRIO_BITS 宏的 U 去掉，中断级别不能低于4 */
  /* 如果动用了 sd 卡 ，初始化引脚要设为上拉 */
  /* 如果动用了 lwip 记得修改 MEMP_NUM_NETCONN ，MEMP_NUM_NETBUF */ 
+  /*修改lwipopts.h中的 MEMP_NUM_NETCONN  值*/
  /* 如果动用了 uip 记得修改 crc 校验硬件 */ 
   SCB->VTOR = FLASH_BASE|0x20000;
   __enable_irq();//打开总中断
@@ -134,8 +135,8 @@ int main(void)
   ioctrl(LED1,0);
   ioctrl(LED2,0);
 
-  vShell_Init("GoodMorning>",vUsartHal_Output);
-  vSerialConsole_Init((char*)acSTM32LOGO);
+  shell_init("lwip-freertos>",serial_puts);
+  serial_console_init((char*)stm32logo);
 
   /* USER CODE END 2 */
 

@@ -5,7 +5,7 @@
 	#define NULL ((void*)0)
 #endif
 
-#define OS_USE_ID_AND_NAME //æ˜¯å¦ä½¿ç”¨ id å·å’Œåå­—ï¼Œå…¶å®é™¤éæ­è½½äº† shell ï¼Œå¦åˆ™ä½¿ç”¨è¿™ä¸ªæ˜¯æ²¡æœ‰æ„ä¹‰çš„
+#define OS_USE_ID_AND_NAME //ÊÇ·ñÊ¹ÓÃ id ºÅºÍÃû×Ö£¬ÆäÊµ³ı·Ç´îÔØÁË shell £¬·ñÔòÊ¹ÓÃÕâ¸öÊÇÃ»ÓĞÒâÒåµÄ
 
 
 //--------------------------------------
@@ -18,33 +18,33 @@ enum TASK_STATUS_VALUE
 
 
 
-typedef struct protothread  //åŸºäº Protothread æœºåˆ¶æ‹“å±•çš„æ§åˆ¶å—
+typedef struct protothread  //»ùÓÚ Protothread »úÖÆÍØÕ¹µÄ¿ØÖÆ¿é
 {
-	volatile unsigned short lc;     //Local Continuation ,Protothread åç¨‹çš„æ ¸å¿ƒ
+	volatile unsigned short lc;     //Local Continuation ,Protothread Ğ­³ÌµÄºËĞÄ
 	volatile unsigned short dly;    //delay/sleep
-	volatile unsigned int time;     //è°ƒåº¦æ—¶é—´ç‚¹ï¼Œç”¨äºå®ç° sleep å’Œè¶…æ—¶ yield
+	volatile unsigned int time;     //µ÷¶ÈÊ±¼äµã£¬ÓÃÓÚÊµÏÖ sleep ºÍ³¬Ê± yield
 
-	unsigned char post;             //post äº‹ä»¶æ ‡å¿—
-	unsigned char init;             //init æ ‡å¿—
-	#define TASK_IS_INITIALIZED 0x9A //init å€¼
+	unsigned char post;             //post ÊÂ¼ş±êÖ¾
+	unsigned char init;             //init ±êÖ¾
+	#define TASK_IS_INITIALIZED 0x9A //init Öµ
 	
 	#ifdef OS_USE_ID_AND_NAME
-		unsigned short ID;          // id å·
-		const char *name;           // ä»»åŠ¡å
+		unsigned short ID;          // id ºÅ
+		const char *name;           // ÈÎÎñÃû
 	#endif
 
 	void * arg;
-	int(*func)(void *);//ä»»åŠ¡å‡½æ•°å…¥å£çš„æ ‡å‡†å½¢å¼
+	int(*func)(void *);//ÈÎÎñº¯ÊıÈë¿ÚµÄ±ê×¼ĞÎÊ½
 	
-	struct list_head list_node; //è°ƒåº¦é“¾è¡¨å—
+	struct list_head list_node; //µ÷¶ÈÁ´±í¿é
 }
 ros_task_t;
 
 
-//-------------------TASK å®šä¹‰-------------------
+//-------------------TASK ¶¨Òå-------------------
 
 
-// ä»»åŠ¡å¼€å§‹ï¼Œæ”¾åœ¨ä»»åŠ¡å‡½æ•°å¼€å¤´ã€‚å¤§å†™ï¼Œè¡¨ç¤ºä¸€å®šè¦æœ‰ 
+// ÈÎÎñ¿ªÊ¼£¬·ÅÔÚÈÎÎñº¯Êı¿ªÍ·¡£´óĞ´£¬±íÊ¾Ò»¶¨ÒªÓĞ 
 #define TASK_BEGIN()    do{\
 							int yield = 1;               \
 							ros_task_t * task = task_self(); \
@@ -56,43 +56,43 @@ ros_task_t;
 #define TASK_END()      	}\
 							task_exit();\
 						}while(0)
-// ä»»åŠ¡ç»“æŸï¼Œæ”¾åœ¨ä»»åŠ¡å‡½æ•°ç»“å°¾å¤„ã€‚å¤§å†™ï¼Œè¡¨ç¤ºä¸€å®šè¦æœ‰
+// ÈÎÎñ½áÊø£¬·ÅÔÚÈÎÎñº¯Êı½áÎ²´¦¡£´óĞ´£¬±íÊ¾Ò»¶¨ÒªÓĞ
 
 
 //-----------------------------------------------------------------
-/* TASK å†…éƒ¨å¯ç”¨æ“ä½œ,å¿…é¡»æ”¾åœ¨ TASK_BEGIN() å’Œ TASK_END() ä¹‹é—´
- *  å› ä¸ºéœ€è¦ç”¨åˆ° TASK_BEGIN() å®šä¹‰çš„ task å’Œ yield å˜é‡
+/* TASK ÄÚ²¿¿ÉÓÃ²Ù×÷,±ØĞë·ÅÔÚ TASK_BEGIN() ºÍ TASK_END() Ö®¼ä
+ *  ÒòÎªĞèÒªÓÃµ½ TASK_BEGIN() ¶¨ÒåµÄ task ºÍ yield ±äÁ¿
  * 
- * æ³¨æ„äº‹é¡¹ï¼šä¸èƒ½åœ¨ä»»åŠ¡å†…çš„ switch å®ç°ä»¥ä¸‹é˜»å¡æŒ‚èµ·åŠŸèƒ½ï¼Œå³
+ * ×¢ÒâÊÂÏî£º²»ÄÜÔÚÈÎÎñÄÚµÄ switch ÊµÏÖÒÔÏÂ×èÈû¹ÒÆğ¹¦ÄÜ£¬¼´
  * char task(void * arg)
  * {
 	 TASK_BEGIN();
-	 task_sleep(100); //å¸¸è§„æ“ä½œ
+	 task_sleep(100); //³£¹æ²Ù×÷
 	 switch(xxx)
 	 {
-		case 2:task_yield(); //ä¸å…è®¸ï¼Œå› ä¸ºä»»åŠ¡çš„æ¢å¤æŒ‚èµ·æœ¬èº«è¦é caseæ¥å®ç° 
+		case 2:task_yield(); //²»ÔÊĞí£¬ÒòÎªÈÎÎñµÄ»Ö¸´¹ÒÆğ±¾ÉíÒª¿¿caseÀ´ÊµÏÖ 
 	 }
 	 TASK_END();
  * }
 */
-// ä»»åŠ¡ç­‰å¾…æŸæ¡ä»¶æˆç«‹ï¼Œå¦‚æœä¸æˆç«‹åˆ™é˜»å¡ã€‚æŠ„è¢­linux çš„ pthred_cond_wait(),ä¸è¿‡æœ‰ç‚¹ä¸ä¸€æ ·	
+// ÈÎÎñµÈ´ıÄ³Ìõ¼ş³ÉÁ¢£¬Èç¹û²»³ÉÁ¢Ôò×èÈû¡£³­Ï®linux µÄ pthred_cond_wait(),²»¹ıÓĞµã²»Ò»Ñù	
 #define task_cond_wait(cond) \
 	do{(task)->lc = __LINE__;case __LINE__:if(!(cond)) return TASK_WAITING;}while(0)
 
 						
-// ä»»åŠ¡ç­‰å¾…æŸæ¡ä»¶å¤±æ•ˆï¼Œå¦‚æœä»æˆç«‹åˆ™é˜»å¡ï¼Œè‡ªå·±åŠ çš„
+// ÈÎÎñµÈ´ıÄ³Ìõ¼şÊ§Ğ§£¬Èç¹ûÈÔ³ÉÁ¢Ôò×èÈû£¬×Ô¼º¼ÓµÄ
 #define task_cond_while(cond) \
 	do{(task)->lc = __LINE__;case __LINE__:if((cond)) return TASK_WAITING;}while(0)
 
 
-// ä»»åŠ¡ç­‰å¾…å…¶ä»–çº¿ç¨‹ä»»åŠ¡ç»“æŸï¼Œå¦‚æœæœªç»“æŸåˆ™é˜»å¡ã€‚æŠ„è¢­linux çš„ pthred_join()					
+// ÈÎÎñµÈ´ıÆäËûÏß³ÌÈÎÎñ½áÊø£¬Èç¹ûÎ´½áÊøÔò×èÈû¡£³­Ï®linux µÄ pthred_join()					
 #define task_join(thread)  task_cond_wait(task_is_exited(thread))
 
-// ä»»åŠ¡é˜»å¡ä¸€æ®µæ—¶é—´ï¼Œå•ä½æ¯«ç§’ ms 
+// ÈÎÎñ×èÈûÒ»¶ÎÊ±¼ä£¬µ¥Î»ºÁÃë ms 
 #define task_sleep(x_ms)   do{(task)->dly = x_ms;task_yield();}while(0)
 
 
-// ä»»åŠ¡è®©å‡º cpu
+// ÈÎÎñÈÃ³ö cpu
 #define task_yield()  \
     do {\
       yield = 0;\
@@ -100,29 +100,29 @@ ros_task_t;
     }while(0)
 	
 
-// ç”¨åœ¨æ—¶é—´å¾ˆé•¿çš„å¾ªç¯æˆ–è®¡ç®—ä¸­ , è¶…æ—¶(1ms)è®©å‡º cpu ï¼Œå¹¶ post ä¸€ä¸ªäº‹ä»¶
+// ÓÃÔÚÊ±¼äºÜ³¤µÄÑ­»·»ò¼ÆËãÖĞ , ³¬Ê±(1ms)ÈÃ³ö cpu £¬²¢ post Ò»¸öÊÂ¼ş
 #define task_timeout_yield() if (OS_current_time != task->time) do{OS_task_post(task);task_yield();}while(0)
 
 
-// ç«‹å³é€€å‡ºä»»åŠ¡ï¼Œå¹¶ä¸å†æ‰§è¡Œæ­¤ä»»åŠ¡
+// Á¢¼´ÍË³öÈÎÎñ£¬²¢²»ÔÙÖ´ĞĞ´ËÈÎÎñ
 #define task_exit()        do{task_cancel(task);return TASK_EXITED;}while(0)
 
 
 	
 
-//-------------------TASK å¤–éƒ¨å¯ç”¨æ“ä½œ-------------------
-// åˆ›å»ºä»»åŠ¡å¹¶å¼€å§‹è¿è¡Œ , æŠ„è¢­ linux çš„ pthread_create(),ç¬¬äºŒä¸ªå‚æ•°å…ˆç•™ç€å¤‡ç”¨
+//-------------------TASK Íâ²¿¿ÉÓÃ²Ù×÷-------------------
+// ´´½¨ÈÎÎñ²¢¿ªÊ¼ÔËĞĞ , ³­Ï® linux µÄ pthread_create(),µÚ¶ş¸ö²ÎÊıÏÈÁô×Å±¸ÓÃ
 #ifdef OS_USE_ID_AND_NAME
 	#define task_create(tidp,x,func,arg) OS_task_create((tidp),#func,func,arg)
 #else
 	#define task_create(tidp,x,func,arg) OS_task_create((tidp),NULL,func,arg)
 #endif
 
-// åˆ é™¤ä¸€ä¸ªä»»åŠ¡,ä¸ç›´æ¥ä»åˆ—è¡¨åˆ é™¤ï¼Œç½®ä½ lc ç”±è°ƒåº¦å™¨åˆ é™¤ã€‚æœ‰å¯èƒ½äº§ç”Ÿäº’æ–¥æ­»é”ï¼Œæ³¨æ„ä½¿ç”¨
+// É¾³ıÒ»¸öÈÎÎñ,²»Ö±½Ó´ÓÁĞ±íÉ¾³ı£¬ÖÃÎ» lc ÓÉµ÷¶ÈÆ÷É¾³ı¡£ÓĞ¿ÉÄÜ²úÉú»¥³âËÀËø£¬×¢ÒâÊ¹ÓÃ
 #define task_cancel(task)     do{(task)->lc = 1;(task)->dly = 0;}while(0)
 
 
-// è·å–ä»»åŠ¡æ˜¯å¦åœ¨è¿è¡Œ ï¼Œ è¿™ä¸ªæ˜¯ linux çº¿ç¨‹åº“æ²¡æœ‰çš„
+// »ñÈ¡ÈÎÎñÊÇ·ñÔÚÔËĞĞ £¬ Õâ¸öÊÇ linux Ïß³Ì¿âÃ»ÓĞµÄ
 #define task_is_running(task)   ((task)->init == TASK_IS_INITIALIZED && (task)->lc != 1)
 #define task_is_exited(task)    (!task_is_running(task))
 
@@ -136,7 +136,7 @@ ros_task_t;
 
 
 
-//------------------ç³»ç»Ÿå¯¹å¤–å£°æ˜--------------------
+//------------------ÏµÍ³¶ÔÍâÉùÃ÷--------------------
 
 extern struct list_head       OS_scheduler_list;
 extern struct protothread *   OS_current_task;

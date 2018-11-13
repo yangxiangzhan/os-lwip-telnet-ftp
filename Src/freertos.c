@@ -53,6 +53,7 @@
 
 /* USER CODE BEGIN Includes */     
 #include "ftp_server.h"
+#include "telnet_server.h"
 /* USER CODE END Includes */
 
 /* Variables -----------------------------------------------------------------*/
@@ -138,9 +139,11 @@ void StartDefaultTask(void const * argument)
 
   /* USER CODE BEGIN StartDefaultTask */
   vFtp_ServerInit();
+  telnet_server_init();
   /* Infinite loop */
   for(;;)
   {
+  	telnet_idle_pro();
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */

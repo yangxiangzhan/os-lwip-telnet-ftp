@@ -70,7 +70,7 @@ const char * const MonthList[] =
 
 
 
-void vFatfs_CD(void * arg)
+static void fatfs_change_directory(void * arg)
 {
     DIR dir;
 	char acAbsolutePath[128];
@@ -122,7 +122,7 @@ void vFatfs_CD(void * arg)
 
 
 /* Start node to be scanned (***also used as work area***) */
-void  vFatfs_ScanDir ( void * arg )
+static void  fatfs_list_files ( void * arg )
 {
     FRESULT res;
     DIR dir;
@@ -252,8 +252,8 @@ void MX_FATFS_Init(void)
 		printk("fatfs Mount success\r\n");
 		if (f_opendir(&g_stCurrentDir, g_acCurrentPath) == FR_OK)
 		{
-			vShell_RegisterCommand("ls",vFatfs_ScanDir);
-			vShell_RegisterCommand("cd",vFatfs_CD);
+			shell_register_command("ls",fatfs_list_files);
+			shell_register_command("cd",fatfs_change_directory);
 			//vShell_RegisterCommand("touch",vFatfs_TouchFile);
 			f_closedir(&g_stCurrentDir);
 		}

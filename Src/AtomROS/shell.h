@@ -31,16 +31,16 @@ enum INPUT_PARAMETER
 
 /*
 -----------------------------------------------------------------------
-	调用宏 vShell_RegisterCommand(pstr,pfunc) 注册命令
+	调用宏 shell_register_command(pstr,pfunc) 注册命令
 	注册一个命令号的同时会新建一个与命令对应的控制块
-	在 shell 注册的函数类型统一为 void(*CmdFuncDef)(void * arg);
+	在 shell 注册的函数类型统一为 void(*CmdFuncDef)(void * arg); 
 	arg 为控制台输入命令后所跟的参数输入
 -----------------------------------------------------------------------
 */
-#define   vShell_RegisterCommand(pstr,pfunc)\
+#define   shell_register_command(pstr,pfunc)\
 	do{\
 		static struct shell_cmd st##pfunc = {0};\
-		_Shell_RegisterCommand(pstr,pfunc,&st##pfunc);\
+		_shell_register(pstr,pfunc,&st##pfunc);\
 	}while(0)
 
 
@@ -50,7 +50,7 @@ enum INPUT_PARAMETER
 
 //#define vShell_InitPrint(fn) do{print_CurrentOut(fn);print_DefaultOut(fn);}while(0)
 
-#define iShell_CmdLen(pCommand)  (((pCommand)->ID >> 21) & 0x001F)
+#define SHELL_CMD_LEN(pCommand)  (((pCommand)->ID >> 21) & 0x001F)
 
 
 
@@ -60,7 +60,7 @@ typedef void (*cmd_fn_def)(void * arg);
 typedef struct shell_cmd
 {
 	uint32_t	  ID;	 //命令标识码
-	char *		  pName; //记录每条命令字符串的内存地址
+	char *		  name; //记录每条命令字符串的内存地址
 	cmd_fn_def	  Func;  //记录命令函数指针
 	//struct rb_node cmd_node;//红黑树节点
 	struct avl_node cmd_node;//avl树节点
@@ -76,27 +76,23 @@ typedef struct shell_buf
 }
 shellbuf_t;
 
-#define vShell_InitBuf(pStShellBuf,shellputs) \
+#define SHELL_MALLOC(shellbuf,shellputs) \
 	do{\
 		static char bufmem[COMMANDLINE_MAX_LEN] = {0};\
-		(pStShellBuf)->bufmem = bufmem;    \
-		(pStShellBuf)->index  = 0;         \
-		(pStShellBuf)->puts = shellputs;   \
+		(shellbuf)->bufmem = bufmem;    \
+		(shellbuf)->index  = 0;         \
+		(shellbuf)->puts = shellputs;   \
 	}while(0)
 
 
-//extern char * shell_input_sign;
 extern char  shell_input_sign[];
-extern struct avl_root shell_avltree_root;
 	
-void _Shell_RegisterCommand(char * cmdname, cmd_fn_def func,struct shell_cmd * newcmd);//注册命令
+void _shell_register(char * cmdname, cmd_fn_def func,struct shell_cmd * newcmd);//注册命令
 
-void vShell_Input(struct shell_buf * pStShellbuf,char * ptr,uint8_t len);
+void shell_input(struct shell_buf * ,char * ,uint8_t );
 
-int  iShell_ParseParam  (char * argStr,int * argc,int argv[]);
+int  shell_cmdparam  (char * argStr,int * argc,int argv[]);
 
-void vShell_Init(char * sign,fnFmtOutDef default_print);
-	
-void vShell_InputSign(char * sign);
+void shell_init(char * sign,fnFmtOutDef default_print);
 
 #endif
